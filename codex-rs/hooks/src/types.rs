@@ -79,6 +79,14 @@ pub struct HookEventAfterAgent {
     pub last_assistant_message: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct HookEventBeforeAgent {
+    pub thread_id: ThreadId,
+    pub turn_id: String,
+    pub input_messages: Vec<String>,
+}
+
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum HookToolKind {
@@ -145,6 +153,10 @@ where
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "event_type", rename_all = "snake_case")]
 pub enum HookEvent {
+    BeforeAgent {
+        #[serde(flatten)]
+        event: HookEventBeforeAgent,
+    },
     AfterAgent {
         #[serde(flatten)]
         event: HookEventAfterAgent,
@@ -169,6 +181,7 @@ mod tests {
     use super::HookEvent;
     use super::HookEventAfterAgent;
     use super::HookEventAfterToolUse;
+    use super::HookEventBeforeAgent;
     use super::HookPayload;
     use super::HookToolInput;
     use super::HookToolInputLocalShell;
@@ -206,6 +219,42 @@ mod tests {
                 "turn_id": "turn-1",
                 "input_messages": ["hello"],
                 "last_assistant_message": "hi",
+            },
+        });
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn before_agent_payload_serializes_stable_wire_shape() {
+        let session_id = ThreadId::new();
+        let thread_id = ThreadId::new();
+        let payload = HookPayload {
+            session_id,
+            cwd: PathBuf::from("tmp"),
+            triggered_at: Utc
+                .with_ymd_and_hms(2025, 1, 1, 0, 0, 0)
+                .single()
+                .expect("valid timestamp"),
+            hook_event: HookEvent::BeforeAgent {
+                event: HookEventBeforeAgent {
+                    thread_id,
+                    turn_id: "turn-0".to_string(),
+                    input_messages: vec!["hello".to_string()],
+                },
+            },
+        };
+
+        let actual = serde_json::to_value(payload).expect("serialize hook payload");
+        let expected = json!({
+            "session_id": session_id.to_string(),
+            "cwd": "tmp",
+            "triggered_at": "2025-01-01T00:00:00Z",
+            "hook_event": {
+                "event_type": "before_agent",
+                "thread_id": thread_id.to_string(),
+                "turn_id": "turn-0",
+                "input_messages": ["hello"],
             },
         });
 

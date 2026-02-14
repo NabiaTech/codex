@@ -1861,11 +1861,13 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
+ "chrono",
  "clap",
  "codex-apply-patch",
  "codex-arg0",
  "codex-cloud-requirements",
  "codex-core",
+ "codex-hooks",
  "codex-protocol",
  "codex-utils-absolute-path",
  "codex-utils-cargo-bin",

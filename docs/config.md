@@ -24,6 +24,12 @@ Codex can run a notification hook when the agent finishes a turn. See the config
 
 - https://developers.openai.com/codex/config-reference
 
+## Pre-turn
+
+Codex can run a pre-turn hook before the agent starts processing a user turn. See the configuration reference for the latest hook settings:
+
+- https://developers.openai.com/codex/config-reference
+
 ## JSON Schema
 
 The generated JSON Schema for `config.toml` lives at `codex-rs/core/config.schema.json`.
