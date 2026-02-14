@@ -1626,6 +1626,14 @@
       ],
       "description": "Optionally specify a personality for the model"
     },
+    "pre_turn": {
+      "default": null,
+      "description": "Optional external command to spawn before each turn begins.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
     "profile": {
       "description": "Profile to use from the `profiles` map.",
       "type": "string"

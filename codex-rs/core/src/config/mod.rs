@@ -228,6 +228,26 @@ pub struct Config {
     /// If unset the feature is disabled.
     pub notify: Option<Vec<String>>,
 
+    /// Optional external command to spawn before each turn begins. The value
+    /// must be the full command broken into argv tokens **without** the
+    /// trailing JSON argument - Codex appends one extra argument containing a
+    /// JSON payload describing the event.
+    ///
+    /// Example `~/.codex/config.toml` snippet:
+    ///
+    /// ```toml
+    /// pre_turn = ["notify-send", "Codex pre-turn"]
+    /// ```
+    ///
+    /// which will be invoked as:
+    ///
+    /// ```shell
+    /// notify-send "Codex pre-turn" '{"event_type":"before_agent",...}'
+    /// ```
+    ///
+    /// If unset the feature is disabled.
+    pub pre_turn: Option<Vec<String>>,
+
     /// TUI notifications preference. When set, the TUI will send terminal notifications on
     /// approvals and turn completions when not focused.
     pub tui_notifications: Notifications,
@@ -897,6 +917,10 @@ pub struct ConfigToml {
     /// Optional external command to spawn for end-user notifications.
     #[serde(default)]
     pub notify: Option<Vec<String>>,
+
+    /// Optional external command to spawn before each turn begins.
+    #[serde(default)]
+    pub pre_turn: Option<Vec<String>>,
 
     /// System instructions.
     pub instructions: Option<String>,
@@ -1757,6 +1781,7 @@ impl Config {
             enforce_residency: enforce_residency.value,
             did_user_set_custom_approval_policy_or_sandbox_mode,
             notify: cfg.notify,
+            pre_turn: cfg.pre_turn,
             user_instructions,
             base_instructions,
             personality,
@@ -4105,6 +4130,7 @@ model_verbosity = "high"
                 did_user_set_custom_approval_policy_or_sandbox_mode: true,
                 user_instructions: None,
                 notify: None,
+                pre_turn: None,
                 cwd: fixture.cwd(),
                 cli_auth_credentials_store_mode: Default::default(),
                 mcp_servers: Constrained::allow_any(HashMap::new()),
@@ -4216,6 +4242,7 @@ model_verbosity = "high"
             did_user_set_custom_approval_policy_or_sandbox_mode: true,
             user_instructions: None,
             notify: None,
+            pre_turn: None,
             cwd: fixture.cwd(),
             cli_auth_credentials_store_mode: Default::default(),
             mcp_servers: Constrained::allow_any(HashMap::new()),
@@ -4325,6 +4352,7 @@ model_verbosity = "high"
             did_user_set_custom_approval_policy_or_sandbox_mode: true,
             user_instructions: None,
             notify: None,
+            pre_turn: None,
             cwd: fixture.cwd(),
             cli_auth_credentials_store_mode: Default::default(),
             mcp_servers: Constrained::allow_any(HashMap::new()),
@@ -4420,6 +4448,7 @@ model_verbosity = "high"
             did_user_set_custom_approval_policy_or_sandbox_mode: true,
             user_instructions: None,
             notify: None,
+            pre_turn: None,
             cwd: fixture.cwd(),
             cli_auth_credentials_store_mode: Default::default(),
             mcp_servers: Constrained::allow_any(HashMap::new()),

@@ -39,6 +39,11 @@ use codex_core::protocol::Op;
 use codex_core::protocol::ReviewRequest;
 use codex_core::protocol::ReviewTarget;
 use codex_core::protocol::SessionSource;
+use codex_hooks::HookEvent;
+use codex_hooks::HookEventBeforeAgent;
+use codex_hooks::HookPayload;
+use codex_hooks::Hooks;
+use codex_hooks::HooksConfig;
 use codex_protocol::approvals::ElicitationAction;
 use codex_protocol::config_types::SandboxMode;
 use codex_protocol::user_input::UserInput;
@@ -270,6 +275,14 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
         .build()
         .await?;
 
+    let hooks = Hooks::new(HooksConfig {
+        legacy_notify_argv: config.notify.clone().or_else(|| config_toml.notify.clone()),
+        pre_turn_argv: config
+            .pre_turn
+            .clone()
+            .or_else(|| config_toml.pre_turn.clone()),
+    });
+
     #[allow(clippy::print_stderr)]
     match check_execpolicy_for_warnings(&config.config_layer_stack).await {
         Ok(None) => {}
@@ -395,11 +408,11 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
     } else {
         thread_manager.start_thread(config.clone()).await?
     };
-    let (initial_operation, prompt_summary) = match (command, prompt, images) {
+    let (initial_operation, prompt_summary, prompt_text) = match (command, prompt, images) {
         (Some(ExecCommand::Review(review_cli)), _, _) => {
             let review_request = build_review_request(review_cli)?;
             let summary = codex_core::review_prompts::user_facing_hint(&review_request.target);
-            (InitialOperation::Review { review_request }, summary)
+            (InitialOperation::Review { review_request }, summary, None)
         }
         (Some(ExecCommand::Resume(args)), root_prompt, imgs) => {
             let prompt_arg = args
@@ -430,7 +443,8 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
                     items,
                     output_schema,
                 },
-                prompt_text,
+                prompt_text.clone(),
+                Some(prompt_text),
             )
         }
         (None, root_prompt, imgs) => {
@@ -450,10 +464,28 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
                     items,
                     output_schema,
                 },
-                prompt_text,
+                prompt_text.clone(),
+                Some(prompt_text),
             )
         }
     };
+
+    if let Some(prompt_text) = prompt_text.as_ref() {
+        hooks
+            .dispatch(HookPayload {
+                session_id: primary_thread_id,
+                cwd: default_cwd.clone(),
+                triggered_at: chrono::Utc::now(),
+                hook_event: HookEvent::BeforeAgent {
+                    event: HookEventBeforeAgent {
+                        thread_id: primary_thread_id,
+                        turn_id: Uuid::now_v7().to_string(),
+                        input_messages: vec![prompt_text.clone()],
+                    },
+                },
+            })
+            .await;
+    }
 
     // Print the effective configuration and initial request so users can see what Codex
     // is using.
