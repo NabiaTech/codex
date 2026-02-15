@@ -43,6 +43,7 @@ use async_channel::Receiver;
 use async_channel::Sender;
 use codex_hooks::HookEvent;
 use codex_hooks::HookEventAfterAgent;
+use codex_hooks::HookEventBeforeAgent;
 use codex_hooks::HookPayload;
 use codex_hooks::HookResult;
 use codex_hooks::Hooks;
@@ -1269,6 +1270,7 @@ impl Session {
             ),
             hooks: Hooks::new(HooksConfig {
                 legacy_notify_argv: config.notify.clone(),
+                pre_turn_argv: config.pre_turn.clone(),
             }),
             rollout: Mutex::new(rollout_recorder),
             user_shell: Arc::new(default_shell),
@@ -4297,6 +4299,50 @@ pub(crate) async fn run_turn(
         return None;
     }
 
+    let input_messages = input
+        .iter()
+        .filter_map(|item| match item {
+            UserInput::Text { text, .. } => Some(text.clone()),
+            _ => None,
+        })
+        .collect::<Vec<String>>();
+    sess.hooks()
+        .dispatch(HookPayload {
+            session_id: sess.conversation_id,
+            cwd: turn_context.cwd.clone(),
+            triggered_at: chrono::Utc::now(),
+            hook_event: HookEvent::BeforeAgent {
+                event: HookEventBeforeAgent {
+                    thread_id: sess.conversation_id,
+                    turn_id: turn_context.sub_id.clone(),
+                    input_messages: input_messages.clone(),
+                },
+            },
+        })
+        .await;
+
+    if let Some(pre_turn_argv) = turn_context.config.pre_turn.as_ref() {
+        let payload = HookPayload {
+            session_id: sess.conversation_id,
+            cwd: turn_context.cwd.clone(),
+            triggered_at: chrono::Utc::now(),
+            hook_event: HookEvent::BeforeAgent {
+                event: HookEventBeforeAgent {
+                    thread_id: sess.conversation_id,
+                    turn_id: turn_context.sub_id.clone(),
+                    input_messages: input_messages.clone(),
+                },
+            },
+        };
+        if let Some(injected) = codex_hooks::run_pre_turn_hook(pre_turn_argv, &payload).await {
+            let message: ResponseInputItem = ResponseInputItem::Message {
+                role: "developer".to_string(),
+                content: vec![ContentItem::InputText { text: injected }],
+            };
+            let _ = sess.inject_response_items(vec![message]).await;
+        }
+    }
+
     let model_info = turn_context.model_info.clone();
     let auto_compact_limit = model_info.auto_compact_token_limit().unwrap_or(i64::MAX);
 
@@ -7316,6 +7362,7 @@ mod tests {
             ),
             hooks: Hooks::new(HooksConfig {
                 legacy_notify_argv: config.notify.clone(),
+                pre_turn_argv: config.pre_turn.clone(),
             }),
             rollout: Mutex::new(None),
             user_shell: Arc::new(default_user_shell()),
@@ -7464,6 +7511,7 @@ mod tests {
             ),
             hooks: Hooks::new(HooksConfig {
                 legacy_notify_argv: config.notify.clone(),
+                pre_turn_argv: config.pre_turn.clone(),
             }),
             rollout: Mutex::new(None),
             user_shell: Arc::new(default_user_shell()),
